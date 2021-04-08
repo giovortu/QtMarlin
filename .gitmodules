@@ -1,0 +1,3 @@
+[submodule "libs/qwt"]
+	path = libs/qwt
+	url = https://github.com/qwtplot/qwt.git
