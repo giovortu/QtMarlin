@@ -19,20 +19,11 @@ MOC_DIR      = moc
 RCC_DIR      = resources
 OBJECTS_DIR       = obj
 
-#include( $$QWT_DIR/qwtconfig.pri )
 
 include( $$PWD/qwtbuild.pri )
 
-#QWT_CONFIG-=QwtDll QwtPolar QwtOpenGL QwtDesigner QwtExamples QwtPlayground QwtFramework QwtTests QwtPkgConfig
-
-#win32 {
-#    QWT_CONFIG     -= QwtDesignerSelfContained
-#}
 
 QWT_CONFIG += QwtPlot QwtWidgets QwtSvg
-
-
-message( $$QWT_CONFIG )
 
 include( $$PWD/qwt.pri )
 
@@ -50,16 +41,11 @@ SOURCES += $$PWD/src/main.cpp \
            $$PWD/src/tab_eeprom.cpp \
            $$PWD/src/tab_veltest.cpp
 
-#LIBS  += -lqextserialport -lqserialdevice -lqwt
-#LIBS += -lqwt
-#LIBS += libqextserialport.a
-#LIBS += -lqserialdevice
-
-
 
 win32 {
  #   LIBS += -lsetupapi -luuid -ladvapi32
 }
+
 unix:!macx {
-    LIBS += -ludev
+   # LIBS += -ludev
 }

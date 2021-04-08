@@ -4,19 +4,15 @@
 
 
 #include <QList>
-#include <QtDebug>
+#include <QDebug>
 
 
 
 #include <iostream>
-#include <stdlib.h>
+
 #include <sstream>
 #include <fstream>
 #include <vector>
-
-#include <time.h>
-using namespace std;
-
 
 #include <QTimer>
 
@@ -53,13 +49,13 @@ using namespace std;
 MainWindow::MainWindow(QWidget *parent): QWidget(parent)
 {      
   initSerial();
-  
-  //port = new AbstractSerial();
+
+
   serialBinBuffer.resize(0);
   wait_reply=false;
-  QVBoxLayout *layout = new QVBoxLayout;
+  auto *layout = new QVBoxLayout;
   
-  QHBoxLayout *comLayout= new QHBoxLayout;
+  auto *comLayout= new QHBoxLayout;
   portSelector=new QComboBox(this);
   baudSelector=new QComboBox(this);
   
@@ -82,7 +78,7 @@ MainWindow::MainWindow(QWidget *parent): QWidget(parent)
   tabPID=new TabPID(tab);
   tabRaw=new TabRaw(tab);
   tabEEPROM=new TabEEPROM(tab);
-  tabVeltest=new TabVeltest(this,0);
+  tabVeltest=new TabVeltest(this,nullptr);
   
   tab->addTab(tabRaw,"Raw");
   tab->addTab(tabPID,"PID");
@@ -93,7 +89,6 @@ MainWindow::MainWindow(QWidget *parent): QWidget(parent)
  
   
   layout->addWidget(status);
-  //layout->addWidget(slider);
   setLayout(layout);
   clickedRefresh();
   
@@ -105,7 +100,7 @@ MainWindow::MainWindow(QWidget *parent): QWidget(parent)
   connect(tabRaw->sendText,SIGNAL(returnPressed()),this, SLOT(manualSend()));
   
   
-   connect(tabPID,SIGNAL(pidChanged()),this, SLOT(sendPID()));
+  connect(tabPID,SIGNAL(pidChanged()),this, SLOT(sendPID()));
   connect(tabPID->pids[0],SIGNAL(returnPressed()),this, SLOT(sendPID()));
   connect(tabPID->pids[1],SIGNAL(returnPressed()),this, SLOT(sendPID()));
   connect(tabPID->pids[2],SIGNAL(returnPressed()),this, SLOT(sendPID()));
@@ -128,18 +123,13 @@ MainWindow::MainWindow(QWidget *parent): QWidget(parent)
 
 MainWindow::~MainWindow()
 {
-  closeSerial();
+
 }
 
 void MainWindow::initSerial()
 {
   #ifdef USE_QEXTSERIALPORT
-    comport=0;
-  #endif
-
-  #ifdef USE_QSERIALDEVICE
-    comport = new AbstractSerial();
-    connect(comport, SIGNAL(readyRead()), this, SLOT(slotRead()));
+    comport=nullptr;
   #endif
 }
 
@@ -147,9 +137,12 @@ void MainWindow::closeSerial()
 {
   
   #ifdef USE_QEXTSERIALPORT
-    comport->close();
+    if ( comport->isOpen() )
+    {
+        comport->close();
+    }
     delete comport;
-    comport=0;
+    comport=nullptr;
   #endif
 
   #ifdef USE_QSERIALDEVICE
@@ -161,73 +154,41 @@ void MainWindow::openSerial()
 {
   #ifdef USE_QEXTSERIALPORT
     if(comport)
+    {
       closeSerial();
+    }
   
     comport = new QSerialPort();
     connect(comport, SIGNAL(readyRead()), this, SLOT(slotRead()));
 
     QString baud=baudSelector->currentText();
     if(baud=="57600")
+    {
       comport->setBaudRate(QSerialPort::Baud57600);
-    else if(baud=="115200")
-      comport->setBaudRate(QSerialPort::Baud115200);
-    else 
-      cerr<<"Unsuppored baudrate"<<endl;
-
-    if (comport->open(QIODevice::ReadWrite) != true) 
-    {
-      cout<<"failed opening comport:"<<portSelector->currentText().toStdString()<<endl;
-      exit(1);
     }
-  #endif
-
-  #ifdef USE_QSERIALDEVICE
-    comport->setDeviceName(portSelector->currentText());
-    if (comport->open(AbstractSerial::ReadWrite | AbstractSerial::Unbuffered)) 
+    else if(baud=="115200")
     {
-       qDebug()<<"opened ok"<<endl;
+      comport->setBaudRate(QSerialPort::Baud115200);
     }
     else
     {
-        qDebug()<<"failed opening comport:"<<portSelector->currentText()<<endl;
-        //exit(1);
-        return;
+      qWarning() <<"Unsuppored baudrate";
     }
-    
-    QString baud=baudSelector->currentText();
-    if(baud=="115200")
+
+    comport->setPortName( portSelector->currentText() );
+
+    //TODO add parameters to GUI
+    comport->setDataBits( QSerialPort::Data8 );
+    comport->setParity( QSerialPort::NoParity );
+    comport->setStopBits( QSerialPort::OneStop );
+    comport->setFlowControl( QSerialPort::NoFlowControl );
+
+    if (!comport->open(QIODevice::ReadWrite) )
     {
-       if (!comport->setBaudRate(AbstractSerial::BaudRate115200)) 
-       {
-          qDebug() << "Set baud rate " <<  AbstractSerial::BaudRate115200 << " error.";
-          return ;
-      };
-    }
-    if(baud=="230400")
-    {
-       if (!comport->setBaudRate(AbstractSerial::BaudRate230400)) 
-       {
-          qDebug() << "Set baud rate " <<  AbstractSerial::BaudRate230400 << " error.";
-          return ;
-      };
-    }
-    if(baud=="250000")
-    {
-       if (!comport->setBaudRate(AbstractSerial::BaudRate250000)) 
-       {
-          qDebug() << "Set baud rate " <<  AbstractSerial::BaudRate250000 << " error.";
-          return ;
-      };
-    }
-    if(baud=="57600")
-    {
-       if (!comport->setBaudRate(AbstractSerial::BaudRate57600)) 
-       {
-          qDebug() << "Set baud rate " <<  AbstractSerial::BaudRate57600<< " error.";
-          return ;
-      };
+      qWarning() <<"failed opening comport : "<<portSelector->currentText();
     }
   #endif
+
 }
 
 
@@ -240,14 +201,12 @@ void MainWindow::clickedConnect()
   
   connect(timer, SIGNAL(timeout()), this, SLOT(measure()));
   timer->start(1000);
-  //getPID();
+
   serialBuffer="";
 }
 
 void MainWindow::clickedDisconnect()
 {
-  //comport->close();
-  //disconnect(comport, SIGNAL(readyRead()), this, SLOT(slotRead()));
   closeSerial();
 }
 
@@ -256,73 +215,68 @@ void MainWindow::clickedRefresh()
   QStringList portnames;
   #ifdef USE_QEXTSERIALPORT
     QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-    stringstream ss;
-    for (int i = 0; i < ports.size(); i++) 
-      portnames<<(ports.at(i).portName() );
-  #endif
 
-  #ifdef USE_QSERIALDEVICE
-      
-    #ifdef DONTUSE_QSERIALDEVICEENUMERATE
-      QDir mydir("/dev");
-      QStringList list = mydir.entryList(QDir::AllEntries|QDir::System);     
-      foreach (QString s, list) 
-      {
-        if(s.startsWith("tty"))
-          portnames<<QString("/dev/%1").arg(s);
-      }
-    #else
-      SerialDeviceEnumerator *m_sde = SerialDeviceEnumerator::instance();
-  
-      QStringList list;
-      list=m_sde->devicesAvailable();
-      
-      foreach (QString s, list) 
-      {
-        m_sde->setDeviceName(s);
-        portnames<<m_sde->shortName();
-      }
-          
-    #endif
+    for (int i = 0; i < ports.size(); i++) 
+    {
+      portnames<<(ports.at(i).portName() );
+    }
   #endif
   
-  //always:
+
   portSelector->clear();
+
   foreach (QString s, portnames) 
+  {
     portSelector->addItem(s);
+  }
 }
 
 void MainWindow::getdata(const QString &line,const QString &after, const QString &key,float &target)
 {
    int n=line.indexOf(after);
-   if(n==-1) return;
+   if(n==-1)
+   {
+       return;
+   }
+
   QString t=line.mid(n,line.size());
   int m=t.indexOf(key)+key.size();
+
   if(m==-1)
+  {
     return;
+  }
+
   float f;
   QString end=t.mid(m, t.size()).split(" ")[0];
   f=end.toFloat();
   target=f;
-  
-  //qDebug()<<end<<endl;
+
 }
 
 void MainWindow::getdata(const QString &line,const QString &after, const QString &key,QLineEdit *target)
 {
    int n=line.indexOf(after);
-   if(n==-1) return;
+
+   if(n==-1)
+   {
+       return;
+   }
+
   QString t=line.mid(n,line.size());
   int m=t.indexOf(key)+key.size();
   if(m==-1)
+  {
     return;
-  float f;
+  }
+
   QString end=t.mid(m, t.size()).split(" ")[0];
-  f=end.toFloat();
+
   target->setText(end);
   tabEEPROM->EEPROM_recalculate();
-  //qDebug()<<end<<endl;
 }
+
+
 void MainWindow::slotRead() 
 {
   QByteArray ba = comport->readAll();
@@ -330,7 +284,10 @@ void MainWindow::slotRead()
   int lastnewlinepos=serialBinBuffer.lastIndexOf('\n');
  // qDebug()<<"newline@"<<lastnewlinepos;
   if(lastnewlinepos<0) 
+  {
     return; //no newline read yet.
+  }
+
   QString readlines=QString(serialBinBuffer.mid(0,lastnewlinepos).append((char)0));
   readSinceLastSend.append(readlines);
   QStringList lines=readlines.split("\n",QString::SkipEmptyParts);
@@ -340,38 +297,42 @@ void MainWindow::slotRead()
   
   foreach(QString s, lines) //s =  linecontent
   {
-    //qDebug()<<"read line:"<<s;
    if(s.contains("endstop"))
+   {
      endstopfound=true;
+   }
    if(s.startsWith("ok") ||s.startsWith("T"))
    {
      QStringList junks(s.remove(0,3).split(" ",QString::SkipEmptyParts));
      foreach(QString j, junks)
      {
-       //qDebug()<<j<<endl;
        QStringList ll=j.split(":",QString::SkipEmptyParts);
        if(ll.size()==2)
        {
          bool ok=false;
          float f=ll[1].toDouble(&ok);
          if(ok)
+         {
             variables[ll[0]]=f ;
-       // qDebug()<<"Variable read:"<<QString(ll[0])<<"="<<variables[ll[0]]<<endl;
+         }
         if(ll[0]=="p")
         {
          tabPID->pids[0]->setText(ll[1]); 
          tabEEPROM->lEPIDp->setText(ll[1]);
         }
+
         if(ll[0]=="i")
         {
          tabPID->pids[1]->setText(ll[1]); 
          tabEEPROM->lEPIDi->setText(ll[1]);
         }
+
         if(ll[0]=="d")
         {
          tabPID->pids[2]->setText(ll[1]); 
          tabEEPROM->lEPIDd->setText(ll[1]);
         }
+
         if(ll[0]=="c")
         {
          tabPID->pids[3]->setText(ll[1]); 
@@ -384,7 +345,6 @@ void MainWindow::slotRead()
    }
    else if(s.startsWith("echo:"))
    {
-     
  
       getdata(s,"M92","X",tabEEPROM->lEstepsperunit[0]);
       getdata(s,"M92","Y",tabEEPROM->lEstepsperunit[1]);
@@ -438,8 +398,12 @@ void MainWindow::manualSend()
 void MainWindow::send(QString text)
 {
   tabRaw->displayTextHtml(QString("<br><b><font color=red>Sending:%0</font></b><br>").arg(text));
+
   if(!comport->isOpen())
+  {
     return;
+  }
+
   QString text2=text.append("\n");
   QByteArray ba=text2.toLocal8Bit(); //data to send
   qint64 bw = 0; //bytes really writed
@@ -450,12 +414,11 @@ void MainWindow::send(QString text)
 
 void MainWindow::sendGcode(const QString &text)
 {
-  //qDebug()<<"gcode cue list:"<<sendcodes.size();
-  
-
   sendcodes<<text;
   if(wait_reply)
+  {
     return;
+  }
   
   send(sendcodes[0]);
   readSinceLastSend="";
@@ -464,8 +427,10 @@ void MainWindow::sendGcode(const QString &text)
 
 void MainWindow::processReply()
 {
-  if(sendcodes.size()==0)
+  if(sendcodes.empty())
+  {
     return;
+  }
   
   QStringList lines = readSinceLastSend.split("\n",QString::SkipEmptyParts);
   //qDebug()<<"got reply for command "<<sendcodes[0];
@@ -476,51 +441,57 @@ void MainWindow::processReply()
     if(overhang.size())
     {
       overhang.append(s);
-      //qDebug()<<"Appeneded Overhang:"<<overhang<<endl;
     }
     else
+    {
       overhang=s;
+    }
     
     if(overhang.startsWith("ok"))
     {
-       //qDebug()<<"ack ok:"<<overhang<<endl;
-      if(sendcodes.size())
+      if(!sendcodes.empty())
       {
         sendcodes.removeFirst();
-        if(sendcodes.size())
+        if(!sendcodes.empty())
         {
           readSinceLastSend="";
           send(sendcodes[0]);
         }
         else
+        {
             wait_reply=false;
+        }
       }
       
     }
     else
     {
-     // qDebug()<<"ack not ok:"<<overhang<<endl;
     }
+
     if(s.size()<2)
+    {
       overhang=s;
+    }
     else
+    {
       overhang="";
-    //qDebug()<<"Overhang:"<<overhang<<endl;
+    }
   }
   
 }
 
 void MainWindow::measure()
 {
-  //qDebug()<<"measure"
   if(!pidloaded)
   {
      getPID();
-      pidloaded=true;
+     pidloaded=true;
   }
   else
   if(tabPID->monitor->isChecked())
+  {
     sendGcode("M105");
+  }
   
 }
 
@@ -542,7 +513,6 @@ void MainWindow::getPID()
 
 void MainWindow::EEPROM_loadClicked()
 {
-  //qDebug()<<"Load Clicked";
   sendGcode(QString("M503"));
 }
 
