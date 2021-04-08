@@ -14,13 +14,9 @@ TARGET = QTMarlin
 DEPENDPATH += $$PWD $$PWD/src
 INCLUDEPATH += $$PWD $$PWD/src $$QWT_SRC_DIR
 
-
 MOC_DIR      = moc
 RCC_DIR      = resources
 OBJECTS_DIR       = obj
-
-
-include( $$PWD/qwtbuild.pri )
 
 
 QWT_CONFIG += QwtPlot QwtWidgets QwtSvg
